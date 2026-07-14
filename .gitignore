@@ -1,0 +1,9 @@
+.cache/
+build/
+release-sources/
+__pycache__/
+*.pyc
+*.so
+*.zip
+*.tar.gz
+*.sha256

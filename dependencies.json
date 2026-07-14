@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "androidDependencies": {
+    "repository": "https://github.com/luanti-org/luanti_android_deps.git",
+    "tag": "latest",
+    "commit": "6dc7008ec4887293164835e3ea064682ad5a4b72",
+    "archive": "https://github.com/luanti-org/luanti_android_deps/releases/download/latest/deps-lite.zip",
+    "sha256": "c70df79314c09d3980308d10d0862717538e6d7e340844bb47d2f95edad37a94",
+    "size": 96421365
+  },
+  "irrlichtHeaders": {
+    "repository": "https://github.com/minetest/irrlicht.git",
+    "tag": "1.9.0mt0",
+    "commit": "03ad637114ffb255f5b9d36c204072e8d263022f"
+  },
+  "zstd": {
+    "repository": "https://github.com/facebook/zstd.git",
+    "tag": "v1.5.7",
+    "commit": "f8745da6ff1ad1e7bab384bd1f9d742439278e99"
+  }
+}
