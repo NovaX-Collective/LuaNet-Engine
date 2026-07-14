@@ -88,7 +88,10 @@ EOF
   archive="$OUTPUT_ROOT/luanet-engine-$version-source.tar.gz"
   tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
     -C "$work" -czf "$archive" "$(basename "$source")"
-  sha256sum "$archive" > "$archive.sha256"
+  (
+    cd "$OUTPUT_ROOT"
+    sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256"
+  )
   rm -rf "$work"
   echo "created $archive"
 done
