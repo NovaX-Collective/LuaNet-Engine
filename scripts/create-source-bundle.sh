@@ -52,6 +52,10 @@ PY
 
   mkdir -p "$source/luanet"
   cp -a "$ROOT/bridge" "$source/luanet/bridge"
+  cp -a "$ROOT/LICENSES" "$source/luanet/LICENSES"
+  if [[ ! -f "$source/COPYING.LESSER" ]]; then
+    cp "$ROOT/LICENSES/LGPL-2.1.txt" "$source/COPYING.LESSER"
+  fi
   cp "$ROOT/catalog.json" "$ROOT/dependencies.json" "$source/luanet/"
   cp -a "$ROOT/scripts" "$source/luanet/build-scripts"
   rm -rf "$source/luanet/build-scripts/__pycache__"
