@@ -1,14 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "usage: $0 <version>" >&2
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  echo "usage: $0 <version> [arm64-v8a|armeabi-v7a|x86_64]" >&2
   exit 64
 fi
 : "${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to an installed Android NDK}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="$1"
+ABI="${2:-${ANDROID_ABI:-arm64-v8a}}"
+case "$ABI" in
+  arm64-v8a)
+    CLANG_TRIPLE="aarch64-linux-android"
+    SYSROOT_TRIPLE="aarch64-linux-android"
+    ;;
+  armeabi-v7a)
+    CLANG_TRIPLE="armv7a-linux-androideabi"
+    SYSROOT_TRIPLE="arm-linux-androideabi"
+    ;;
+  x86_64)
+    CLANG_TRIPLE="x86_64-linux-android"
+    SYSROOT_TRIPLE="x86_64-linux-android"
+    ;;
+  *)
+    echo "unsupported Android ABI: $ABI" >&2
+    exit 64
+    ;;
+esac
 readarray -t META < <(python3 - "$ROOT/catalog.json" "$VERSION" <<'PY'
 import json, sys
 catalog = json.load(open(sys.argv[1]))
@@ -25,10 +44,15 @@ REPOSITORY="${META[0]}"
 TAG="${META[1]}"
 COMMIT="${META[2]}"
 LIBRARY="${META[3]}"
-CACHE="$ROOT/.cache/luanti.git"
-WORK_ROOT="$ROOT/build/work"
-OUTPUT="$ROOT/build/artifacts/$VERSION"
+GIT_CACHE_ROOT="${ENGINE_GIT_CACHE_ROOT:-$ROOT/.cache}"
+CACHE="$GIT_CACHE_ROOT/luanti.git"
+CACHE_LOCK="$GIT_CACHE_ROOT/luanti.lock"
+WORK_ROOT="${ENGINE_WORK_ROOT:-$ROOT/build/work}"
+OUTPUT="$ROOT/build/artifacts/$ABI/$VERSION"
 
+mkdir -p "$ROOT/.cache" "$GIT_CACHE_ROOT"
+exec 9>"$CACHE_LOCK"
+flock 9
 if [[ ! -d "$CACHE" ]]; then
   git init --bare "$CACHE"
   git -C "$CACHE" remote add origin "$REPOSITORY"
@@ -47,13 +71,14 @@ done
 ACTUAL="$(git -C "$CACHE" rev-parse "refs/tags/$TAG^{}")"
 if [[ "$ACTUAL" != "$COMMIT" ]]; then
   echo "source verification failed: expected $COMMIT, got $ACTUAL" >&2
-  exit 65
+    exit 65
 fi
 
 mkdir -p "$WORK_ROOT"
 SOURCE="$(mktemp -d "$WORK_ROOT/${VERSION}.XXXXXX")"
 trap 'rm -rf "$SOURCE"' EXIT
 git clone --quiet --no-checkout "$CACHE" "$SOURCE"
+flock -u 9
 git -C "$SOURCE" checkout -q --detach "$COMMIT"
 git -C "$SOURCE" submodule update --init --depth 1
 BUILD="$SOURCE/.luanet-build"
@@ -61,26 +86,35 @@ BUILD="$SOURCE/.luanet-build"
 python3 "$ROOT/scripts/prepare-source.py" "$SOURCE" \
   --bridge "$ROOT/bridge/src/luanet_engine.cpp" --library "$LIBRARY"
 
-DEPS="$SOURCE/android/native/deps"
 DEPS_URL="https://github.com/luanti-org/luanti_android_deps/releases/download/latest/deps-lite.zip"
-DEPS_SHA256="c70df79314c09d3980308d10d0862717538e6d7e340844bb47d2f95edad37a94"
-if [[ ! -d "$DEPS/arm64-v8a" ]]; then
+DEPS_SHA256="8d3a2d887a6b726fa260e623f1fabf7b2e94cf0c0ab952d998cfb69fbd635e1f"
+DEPS_ARCHIVE="$ROOT/.cache/deps-lite-$DEPS_SHA256.zip"
+DEPS="${ANDROID_DEPS_ROOT:-$ROOT/.cache/android-deps-$DEPS_SHA256}"
+if [[ ! -d "$DEPS/$ABI" ]]; then
   mkdir -p "$DEPS"
-  curl --fail --location --retry 3 "$DEPS_URL" --output "$SOURCE/deps-lite.zip"
-  echo "$DEPS_SHA256  $SOURCE/deps-lite.zip" | sha256sum --check --status || {
+  if [[ ! -f "$DEPS_ARCHIVE" ]]; then
+    curl --fail --location --retry 3 "$DEPS_URL" --output "$DEPS_ARCHIVE.tmp"
+    mv "$DEPS_ARCHIVE.tmp" "$DEPS_ARCHIVE"
+  fi
+  echo "$DEPS_SHA256  $DEPS_ARCHIVE" | sha256sum --check --status || {
     echo "Android dependency archive checksum mismatch" >&2
     exit 69
   }
-  unzip -q "$SOURCE/deps-lite.zip" -d "$DEPS"
+  unzip -q "$DEPS_ARCHIVE" -d "$DEPS"
 fi
-ABI_DEPS="$DEPS/arm64-v8a"
+mkdir -p "$SOURCE/android/native"
+if [[ -d "$SOURCE/android/native/deps" && ! -L "$SOURCE/android/native/deps" ]]; then
+  rmdir "$SOURCE/android/native/deps"
+fi
+ln -s "$DEPS" "$SOURCE/android/native/deps"
+ABI_DEPS="$DEPS/$ABI"
 SQLITE_DIR="$ABI_DEPS/SQLite"
 IRRLICHT_REPOSITORY="https://github.com/minetest/irrlicht.git"
 IRRLICHT_TAG="1.9.0mt0"
 IRRLICHT_COMMIT="03ad637114ffb255f5b9d36c204072e8d263022f"
-IRRLICHT_CACHE="$ROOT/.cache/irrlichtmt.git"
+IRRLICHT_CACHE="$GIT_CACHE_ROOT/irrlichtmt.git"
 IRRLICHT_ROOT="$ROOT/build/legacy-irrlicht/$IRRLICHT_COMMIT"
-IRRLICHT_STUB_DIR="$ROOT/build/legacy-irrlicht/android-arm64"
+IRRLICHT_STUB_DIR="$ROOT/build/legacy-irrlicht/android-$ABI"
 IRRLICHT_STUB_LIB="$IRRLICHT_STUB_DIR/libIrrlicht.a"
 if [[ ! -d "$IRRLICHT_ROOT/include" ]]; then
   if [[ ! -d "$IRRLICHT_CACHE" ]]; then
@@ -105,69 +139,67 @@ if [[ ! -f "$IRRLICHT_STUB_LIB" ]]; then
   TOOLCHAIN_BIN="$(find "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt" -mindepth 1 -maxdepth 1 -type d -print -quit)/bin"
   mkdir -p "$IRRLICHT_STUB_DIR"
   printf 'void luanet_irrlicht_stub(void) {}\n' > "$IRRLICHT_STUB_DIR/irrlicht_stub.c"
-  "$TOOLCHAIN_BIN/aarch64-linux-android29-clang" -c "$IRRLICHT_STUB_DIR/irrlicht_stub.c" -o "$IRRLICHT_STUB_DIR/irrlicht_stub.o"
+  "$TOOLCHAIN_BIN/${CLANG_TRIPLE}29-clang" -c "$IRRLICHT_STUB_DIR/irrlicht_stub.c" -o "$IRRLICHT_STUB_DIR/irrlicht_stub.o"
   "$TOOLCHAIN_BIN/llvm-ar" rcs "$IRRLICHT_STUB_LIB" "$IRRLICHT_STUB_DIR/irrlicht_stub.o"
 fi
 
 ZSTD_ARGS=()
 if grep -q 'find_package(Zstd' "$SOURCE/src/CMakeLists.txt"; then
   TOOLCHAIN_BIN="$(find "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt" -mindepth 1 -maxdepth 1 -type d -print -quit)/bin"
-  ZSTD_REPOSITORY="https://github.com/facebook/zstd.git"
-  ZSTD_TAG="v1.5.7"
-  ZSTD_COMMIT="f8745da6ff1ad1e7bab384bd1f9d742439278e99"
-  ZSTD_CACHE="$ROOT/.cache/zstd.git"
-  ZSTD_ROOT="$ROOT/build/android-deps/zstd-$ZSTD_COMMIT-arm64"
-  ZSTD_LIBRARY="$ZSTD_ROOT/lib/libzstd.a"
-  if [[ ! -f "$ZSTD_LIBRARY" ]]; then
-    if [[ ! -d "$ZSTD_CACHE" ]]; then
-      git init --bare "$ZSTD_CACHE"
-      git -C "$ZSTD_CACHE" remote add origin "$ZSTD_REPOSITORY"
-    fi
-    git -C "$ZSTD_CACHE" remote set-url origin "$ZSTD_REPOSITORY"
-    git -C "$ZSTD_CACHE" fetch --force --depth 1 origin "refs/tags/$ZSTD_TAG:refs/tags/$ZSTD_TAG"
-    ZSTD_ACTUAL="$(git -C "$ZSTD_CACHE" rev-parse "refs/tags/$ZSTD_TAG^{}")"
-    if [[ "$ZSTD_ACTUAL" != "$ZSTD_COMMIT" ]]; then
-      echo "Zstd verification failed: expected $ZSTD_COMMIT, got $ZSTD_ACTUAL" >&2
-      exit 68
-    fi
-    ZSTD_SOURCE="$(mktemp -d "$WORK_ROOT/zstd.XXXXXX")"
-    git clone --quiet --no-checkout "$ZSTD_CACHE" "$ZSTD_SOURCE"
-    git -C "$ZSTD_SOURCE" checkout -q --detach "$ZSTD_COMMIT"
-    make -s -C "$ZSTD_SOURCE/lib" -j"$(nproc)" libzstd.a \
-      CC="$TOOLCHAIN_BIN/aarch64-linux-android29-clang" \
-      AR="$TOOLCHAIN_BIN/llvm-ar" \
-      RANLIB="$TOOLCHAIN_BIN/llvm-ranlib" \
-      CFLAGS="-fPIC -O2"
-    mkdir -p "$ZSTD_ROOT/include" "$ZSTD_ROOT/lib"
-    install -m 0644 "$ZSTD_SOURCE/lib/libzstd.a" "$ZSTD_LIBRARY"
-    install -m 0644 "$ZSTD_SOURCE/lib/zstd.h" "$ZSTD_ROOT/include/"
-    install -m 0644 "$ZSTD_SOURCE/lib/zdict.h" "$ZSTD_ROOT/include/"
-    install -m 0644 "$ZSTD_SOURCE/lib/zstd_errors.h" "$ZSTD_ROOT/include/"
-    rm -rf "$ZSTD_SOURCE"
-  fi
+  ZSTD_ROOT="$ABI_DEPS/Zstd"
+  ZSTD_LIBRARY="$ZSTD_ROOT/libzstd.a"
+  test -f "$ZSTD_ROOT/include/zstd.h" -a -f "$ZSTD_LIBRARY"
   ZSTD_ARGS=(-DZSTD_INCLUDE_DIR="$ZSTD_ROOT/include" -DZSTD_LIBRARY="$ZSTD_LIBRARY")
 fi
 
-cmake -S "$SOURCE" -B "$BUILD" -G Ninja \
-  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_shared \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-  -DCMAKE_CXX_FLAGS="-I$IRRLICHT_ROOT/include" \
-  -DCMAKE_DISABLE_FIND_PACKAGE_IrrlichtMt=ON \
-  -DIRRLICHT_INCLUDE_DIR="$IRRLICHT_ROOT/include" -DIRRLICHT_LIBRARY="$IRRLICHT_STUB_LIB" \
-  -DSQLITE3_INCLUDE_DIR="$SQLITE_DIR/include" -DSQLITE3_LIBRARY="$SQLITE_DIR/libsqlite3.a" \
-  -DSQLite3_INCLUDE_DIR="$SQLITE_DIR/include" -DSQLite3_LIBRARY="$SQLITE_DIR/libsqlite3.a" \
-  -DBUILD_CLIENT=OFF -DBUILD_SERVER=ON -DBUILD_UNITTESTS=OFF -DBUILD_BENCHMARKS=OFF \
-  -DENABLE_CURSES=OFF -DENABLE_CURL=ON -DENABLE_FREETYPE=OFF -DENABLE_GETTEXT=OFF -DENABLE_SOUND=OFF \
-  -DENABLE_POSTGRESQL=OFF -DENABLE_LEVELDB=OFF -DENABLE_REDIS=OFF \
-  -DENABLE_PROMETHEUS=OFF -DENABLE_SPATIAL=OFF -DENABLE_UPDATE_CHECKER=OFF \
-  "${ZSTD_ARGS[@]}"
+declare -a CMAKE_ARGS=(
+  -S "$SOURCE"
+  -B "$BUILD"
+  -G Ninja
+  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake"
+  -DANDROID_ABI="$ABI"
+  -DANDROID_PLATFORM=android-29
+  -DANDROID_STL=c++_shared
+  -DCMAKE_BUILD_TYPE=Release
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+  -DCMAKE_CXX_FLAGS="-I$IRRLICHT_ROOT/include"
+  -DCMAKE_DISABLE_FIND_PACKAGE_IrrlichtMt=ON
+  -DIRRLICHT_INCLUDE_DIR="$IRRLICHT_ROOT/include"
+  -DIRRLICHT_LIBRARY="$IRRLICHT_STUB_LIB"
+  -DSQLITE3_INCLUDE_DIR="$SQLITE_DIR/include"
+  -DSQLITE3_LIBRARY="$SQLITE_DIR/libsqlite3.a"
+  -DSQLite3_INCLUDE_DIR="$SQLITE_DIR/include"
+  -DSQLite3_LIBRARY="$SQLITE_DIR/libsqlite3.a"
+  -DBUILD_CLIENT=OFF
+  -DBUILD_SERVER=ON
+  -DBUILD_UNITTESTS=OFF
+  -DBUILD_BENCHMARKS=OFF
+  -DENABLE_CURSES=OFF
+  -DENABLE_CURL=ON
+  -DENABLE_FREETYPE=OFF
+  -DENABLE_GETTEXT=OFF
+  -DENABLE_SOUND=OFF
+  -DENABLE_POSTGRESQL=OFF
+  -DENABLE_LEVELDB=OFF
+  -DENABLE_REDIS=OFF
+  -DENABLE_PROMETHEUS=OFF
+  -DENABLE_SPATIAL=OFF
+  -DENABLE_UPDATE_CHECKER=OFF
+)
+CMAKE_ARGS+=("${ZSTD_ARGS[@]}")
+if [[ "${ENGINE_USE_CCACHE:-1}" == 1 ]] && command -v ccache >/dev/null 2>&1; then
+  CMAKE_ARGS+=(
+    -DCMAKE_C_COMPILER_LAUNCHER=ccache
+    -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+  )
+fi
+cmake "${CMAKE_ARGS[@]}"
 cmake --build "$BUILD"
 
 ARTIFACT="$(find "$BUILD" -name "lib${LIBRARY}.so" -print -quit)"
 test -n "$ARTIFACT"
 mkdir -p "$OUTPUT"
 install -m 0644 "$ARTIFACT" "$OUTPUT/lib${LIBRARY}.so"
-install -m 0644 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"/*/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so "$OUTPUT/" 2>/dev/null || true
+install -m 0644 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"/*/sysroot/usr/lib/"$SYSROOT_TRIPLE"/libc++_shared.so "$OUTPUT/" 2>/dev/null || true
 sha256sum "$OUTPUT"/*.so > "$OUTPUT/SHA256SUMS"
-echo "built $OUTPUT/lib${LIBRARY}.so"
+echo "built $ABI $OUTPUT/lib${LIBRARY}.so"

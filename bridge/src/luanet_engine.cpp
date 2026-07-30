@@ -387,7 +387,9 @@ Java_net_novax_luanet_runtime_NativeEngineBridge_run(JNIEnv *env, jobject instan
 	const std::string log = root + "/server.log";
 	set_path("LUANTI_USER_PATH", "MINETEST_USER_PATH", root);
 	set_path("LUANTI_GAME_PATH", "MINETEST_GAME_PATH", root + "/games");
-	set_path("LUANTI_MOD_PATH", "MINETEST_MOD_PATH", root + "/mods");
+	// Luanti already discovers <user path>/mods. Registering that same directory
+	// again through *_MOD_PATH makes every installed mod appear twice and causes
+	// an unresolved mod-name conflict when the server starts.
 	std::remove(log.c_str());
 	g_announced_ready = false;
 

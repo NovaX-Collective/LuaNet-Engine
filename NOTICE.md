@@ -1,9 +1,5 @@
 # Native engine notices
 
-This repository contains only the open-source LuaNet engine integration. The
-LuaNet Android app, backend, infrastructure and website are separate
-proprietary works.
-
 LuaNet's JNI bridge and any patches in this directory are licensed under
 LGPL-2.1-or-later. Luanti is distributed under LGPL-2.1-or-later; every build is made from
 the exact upstream commit recorded in `catalog.json` and retains upstream copyright and
