@@ -84,7 +84,7 @@ This archive contains the complete Luanti source checkout, initialized
 submodules, LuaNet native bridge, applied source transformations, catalog,
 dependency pins, and build scripts used for the LuaNet Android engine.
 
-LuaNet-Engine: https://github.com/Just-Nova23/LuaNet-Engine
+LuaNet-Engine: https://github.com/NovaX-Collective/LuaNet-Engine
 EOF
 
   find "$source" -name .git -type d -prune -exec rm -rf {} \;
