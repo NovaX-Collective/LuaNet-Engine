@@ -15,12 +15,13 @@ website are not part of this repository.
 - Reproducible source transformations and Android build scripts.
 - A three-ABI build matrix for modern phones, older 32-bit ARM devices and
   x86_64 Android environments.
+- 16 kB ELF page alignment for current and future 64-bit Android devices.
 - Pinned native dependency revisions and archive checksum.
 - Tooling for producing complete corresponding-source archives.
 
 ## Supported engines
 
-The current catalog contains Luanti/Minetest `5.0.1` through `5.16.1`. Every
+The current catalog contains Luanti/Minetest `5.0.1` through `5.17.0`. Every
 version is delivered as an independent on-demand Play feature, so installing
 LuaNet does not download engine versions that a user never selects.
 
@@ -33,18 +34,21 @@ python3 scripts/validate-catalog.py
 Build an engine with Android NDK available as `ANDROID_NDK_HOME`:
 
 ```bash
-scripts/build-version.sh 5.16.1 arm64-v8a
-scripts/build-version.sh 5.16.1 armeabi-v7a
-scripts/build-version.sh 5.16.1 x86_64
+scripts/build-version.sh 5.17.0 arm64-v8a
+scripts/build-version.sh 5.17.0 armeabi-v7a
+scripts/build-version.sh 5.17.0 x86_64
 ```
 
 After validating one version and ABI, `scripts/build-all.sh` builds the complete
 catalog and `scripts/sync-android-artifacts.sh` stages it for Android packaging.
+The manual GitHub Actions workflow performs the same complete build across all
+three ABIs. Artifacts are disabled by default to avoid consuming Actions
+storage; they can be enabled for a run and expire after one day.
 
 Create corresponding-source archives for one engine or the entire catalog:
 
 ```bash
-scripts/create-source-bundle.sh 5.16.1
+scripts/create-source-bundle.sh 5.17.0
 scripts/create-source-bundle.sh
 ```
 

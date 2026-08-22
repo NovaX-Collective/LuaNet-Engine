@@ -36,6 +36,7 @@ VERSIONS = [
     "5.14.0",
     "5.15.2",
     "5.16.1",
+    "5.17.0",
 ]
 
 SOURCE_URLS = [
@@ -100,16 +101,13 @@ def write_builtin_zip(version: str, archive: Path, destination: Path) -> None:
 
 def main() -> None:
     root = repo_root()
-    base_output_root = root / "android/app/src/main/assets/engine-runtime"
     legacy_output_root = root / "android/engine_legacy/src/main/assets/engine-runtime"
-    base_output_root.mkdir(parents=True, exist_ok=True)
     legacy_output_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="luanet-runtime-source-") as temporary:
         cache_dir = Path(temporary)
         for version in VERSIONS:
             archive = download(version, cache_dir)
-            output_root = base_output_root if version == "5.16.1" else legacy_output_root
-            write_builtin_zip(version, archive, output_root / version / "builtin.zip")
+            write_builtin_zip(version, archive, legacy_output_root / version / "builtin.zip")
 
 
 if __name__ == "__main__":

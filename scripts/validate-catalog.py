@@ -8,8 +8,8 @@ repo = root.parent
 catalog = json.loads((root / "catalog.json").read_text())
 engines = catalog["engines"]
 assert catalog["abis"] == ["arm64-v8a", "armeabi-v7a", "x86_64"]
-assert len(engines) == 17
-assert engines[-1]["version"] == "5.16.1"
+assert len(engines) == 18
+assert engines[-1]["version"] == "5.17.0"
 assert len({item["version"] for item in engines}) == len(engines)
 assert len({item["library"] for item in engines}) == len(engines)
 for item in engines:

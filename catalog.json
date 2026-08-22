@@ -19,6 +19,7 @@
     {"version":"5.13.0","tag":"5.13.0","commit":"5ab66da6f72e89fe9c9b71b3e952da1676a8e172","library":"luanet_engine_5_13_0"},
     {"version":"5.14.0","tag":"5.14.0","commit":"6d1a208018b487e6b762d5da4a70c40333ee11a4","library":"luanet_engine_5_14_0"},
     {"version":"5.15.2","tag":"5.15.2","commit":"044ab8a35be38593aefd8fdde9601cc44754f3cc","library":"luanet_engine_5_15_2"},
-    {"version":"5.16.1","tag":"5.16.1","commit":"5ebd9b57984d5854e0a37fd0125da48e9e59e190","library":"luanet_engine_5_16_1"}
+    {"version":"5.16.1","tag":"5.16.1","commit":"5ebd9b57984d5854e0a37fd0125da48e9e59e190","library":"luanet_engine_5_16_1"},
+    {"version":"5.17.0","tag":"5.17.0","commit":"c0e6812b1a4260bb25a1f606f70f55f4962bb97d","library":"luanet_engine_5_17_0"}
   ]
 }

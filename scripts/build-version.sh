@@ -160,9 +160,11 @@ declare -a CMAKE_ARGS=(
   -DANDROID_ABI="$ABI"
   -DANDROID_PLATFORM=android-29
   -DANDROID_STL=c++_shared
+  -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON
   -DCMAKE_BUILD_TYPE=Release
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   -DCMAKE_CXX_FLAGS="-I$IRRLICHT_ROOT/include"
+  -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384"
   -DCMAKE_DISABLE_FIND_PACKAGE_IrrlichtMt=ON
   -DIRRLICHT_INCLUDE_DIR="$IRRLICHT_ROOT/include"
   -DIRRLICHT_LIBRARY="$IRRLICHT_STUB_LIB"
@@ -201,5 +203,15 @@ test -n "$ARTIFACT"
 mkdir -p "$OUTPUT"
 install -m 0644 "$ARTIFACT" "$OUTPUT/lib${LIBRARY}.so"
 install -m 0644 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"/*/sysroot/usr/lib/"$SYSROOT_TRIPLE"/libc++_shared.so "$OUTPUT/" 2>/dev/null || true
+PAGE_ALIGNMENT_OK=1
+while read -r ALIGNMENT; do
+  if (( ALIGNMENT < 0x4000 )); then
+    PAGE_ALIGNMENT_OK=0
+  fi
+done < <(readelf -lW "$OUTPUT/lib${LIBRARY}.so" | awk '$1 == "LOAD" { print $NF }')
+if (( PAGE_ALIGNMENT_OK == 0 )); then
+  echo "native library is not compatible with 16 kB page-size devices: $OUTPUT/lib${LIBRARY}.so" >&2
+  exit 70
+fi
 sha256sum "$OUTPUT"/*.so > "$OUTPUT/SHA256SUMS"
 echo "built $ABI $OUTPUT/lib${LIBRARY}.so"
