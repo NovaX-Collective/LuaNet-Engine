@@ -26,7 +26,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ccache cmake ninja-build
       - name: Install Android NDK r29
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
       - name: Validate catalog
         run: python3 scripts/validate-catalog.py
