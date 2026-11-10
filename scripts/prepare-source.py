@@ -229,7 +229,7 @@ struct hash<::v3s16> {
 	{
 		return static_cast<size_t>(value.X) ^
 				(static_cast<size_t>(value.Y) << 16) ^
-				(static_cast<size_t>(value.Z) << 32);
+				(static_cast<size_t>(value.Z) << (sizeof(size_t) > 4 ? 32 : 1));
 	}
 };
 }
@@ -257,7 +257,7 @@ struct hash<::v3s16> {
             "return std::hash<v3s16>()(p.first) ^ p.second;",
             "return static_cast<size_t>(p.first.X) ^\n"
             "\t\t\t\t\t(static_cast<size_t>(p.first.Y) << 16) ^\n"
-            "\t\t\t\t\t(static_cast<size_t>(p.first.Z) << 32) ^\n"
+            "\t\t\t\t\t(static_cast<size_t>(p.first.Z) << (sizeof(size_t) > 4 ? 32 : 1)) ^\n"
             "\t\t\t\t\tstatic_cast<size_t>(p.second);",
         )
         server_header.write_text(server)
