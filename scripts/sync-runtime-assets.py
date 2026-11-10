@@ -11,6 +11,7 @@ This script downloads official Luanti source archives and writes compact
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import tarfile
 import tempfile
@@ -101,12 +102,17 @@ def write_builtin_zip(version: str, archive: Path, destination: Path) -> None:
 
 
 def main() -> None:
-    root = repo_root()
-    legacy_output_root = root / "android/engine_legacy/src/main/assets/engine-runtime"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", action="append", choices=VERSIONS,
+                        help="Bundle only these versions (repeatable). Defaults to the full catalog.")
+    parser.add_argument("--output-root", type=Path,
+                        default=repo_root() / "android/engine_legacy/src/main/assets/engine-runtime")
+    args = parser.parse_args()
+    legacy_output_root = args.output_root
     legacy_output_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="luanet-runtime-source-") as temporary:
         cache_dir = Path(temporary)
-        for version in VERSIONS:
+        for version in args.version or VERSIONS:
             archive = download(version, cache_dir)
             write_builtin_zip(version, archive, legacy_output_root / version / "builtin.zip")
 

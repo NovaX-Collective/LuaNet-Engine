@@ -1,5 +1,14 @@
 {
   "schema": 1,
+  "androidDependencies518": {
+    "repository": "https://github.com/luanti-org/luanti_android_deps.git",
+    "tag": "latest",
+    "commit": "50689cf885e20fd89b08a4a8bd84030d8830a7c2",
+    "assetId": 728933783,
+    "archive": "https://api.github.com/repos/luanti-org/luanti_android_deps/releases/assets/728933783",
+    "sha256": "ceb652494184b75085b5fbf232bc59da347b1c4fea119f300e9f40a16b3aeed8",
+    "size": 98102030
+  },
   "androidDependencies": {
     "repository": "https://github.com/luanti-org/luanti_android_deps.git",
     "tag": "latest",
