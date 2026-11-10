@@ -135,8 +135,22 @@ def main() -> None:
             "\t\t\tluanet_clear_admin_chat_interface(&luanet_iface);\n\n"
             "\t\t} catch (const ModError &e) {"
         )
+        socket_no_curses_server = no_curses_server.replace(
+            "\t\t\t\tbind_addr, true);", "\t\t\t\t\tUDPSocket::Create(bind_addr), true);"
+        )
         if no_curses_server in main:
             main = main.replace(no_curses_server, luanet_server, 1)
+        elif socket_no_curses_server in main:
+            # Luanti 5.18 transfers an already-created UDP socket to Server.
+            # Patch the no-curses path: Android never runs the terminal UI.
+            main = main.replace(
+                socket_no_curses_server,
+                luanet_server.replace("bind_addr, true, &luanet_iface);",
+                                      "UDPSocket::Create(bind_addr), true, &luanet_iface);"),
+                1,
+            )
+        elif "UDPSocket::Create(bind_addr)" in main:
+            raise SystemExit("Unsupported Luanti UDP socket server loop layout")
         elif legacy_no_curses_server in main:
             main = main.replace(legacy_no_curses_server, legacy_luanet_server, 1)
         else:

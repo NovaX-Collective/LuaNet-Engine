@@ -21,7 +21,7 @@ website are not part of this repository.
 
 ## Supported engines
 
-The current catalog contains Luanti/Minetest `5.0.1` through `5.17.0`. Every
+The current catalog contains Luanti/Minetest `5.0.1` through `5.18.0`. Every
 version is delivered as an independent on-demand Play feature, so installing
 LuaNet does not download engine versions that a user never selects.
 
