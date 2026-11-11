@@ -152,6 +152,12 @@ def main() -> None:
         )
         if no_curses_server in main:
             main = main.replace(no_curses_server, luanet_server, 1)
+        elif no_curses_server.replace("volatile auto &kill", "bool &kill") in main:
+            main = main.replace(
+                no_curses_server.replace("volatile auto &kill", "bool &kill"),
+                luanet_server.replace("volatile auto &kill", "bool &kill"),
+                1,
+            )
         elif socket_no_curses_server in main:
             # Luanti 5.18 transfers an already-created UDP socket to Server.
             # Patch the no-curses path: Android never runs the terminal UI.
@@ -197,8 +203,7 @@ def main() -> None:
                 1,
             )
         if "luanet_set_admin_chat_interface(&luanet_iface" not in main:
-            if "luanet_set_admin_chat_interface(&iface" not in main:
-                raise SystemExit("Unsupported Luanti dedicated server loop layout")
+            raise SystemExit("Unsupported Luanti headless dedicated server loop layout")
         main_cpp.write_text(main)
 
     if android_header.exists():
