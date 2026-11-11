@@ -67,6 +67,18 @@ def main() -> None:
     cmake.write_text(text.replace(marker, injection + marker, 1))
 
     main_cpp = args.source / "src" / "main.cpp"
+    legacy_strings = args.source / "src" / "util" / "string.cpp"
+    if legacy_strings.exists():
+        strings = legacy_strings.read_text()
+        # Pre-API-21 wchar shims override Bionic symbols and crash modern
+        # libc++ initialization (mbtowc(nullptr, nullptr, 0)).
+        for marker in ("const wchar_t* wide_chars", "std::string wide_to_narrow"):
+            strings = strings.replace(
+                "#ifdef __ANDROID__\n\n" + marker,
+                "#if defined(__ANDROID__) && __ANDROID_API__ < 21\n\n" + marker,
+                1,
+            )
+        legacy_strings.write_text(strings)
     if main_cpp.exists():
         main = main_cpp.read_text()
         if "luanet_set_admin_chat_interface" not in main:
