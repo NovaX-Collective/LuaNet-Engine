@@ -66,6 +66,13 @@ def main() -> None:
     )
     cmake.write_text(text.replace(marker, injection + marker, 1))
 
+    helpers = args.source / "builtin" / "common" / "misc_helpers.lua"
+    if helpers.exists():
+        lua = helpers.read_text()
+        old = '\treturn table.concat(list, delim)\nend\n\nassert(core.string_to_privs'
+        if old in lua:
+            helpers.write_text(lua.replace(old, '\ttable.sort(list)\n' + old, 1))
+
     main_cpp = args.source / "src" / "main.cpp"
     legacy_strings = args.source / "src" / "util" / "string.cpp"
     if legacy_strings.exists():
@@ -78,6 +85,24 @@ def main() -> None:
                 "#if defined(__ANDROID__) && __ANDROID_API__ < 21\n\n" + marker,
                 1,
             )
+        if "size_t inbuf_size = input.length() + 1;" in strings:
+            # Old iconv wrappers fail with current Android's conversion backend.
+            # Use locale-independent UTF-8/UTF-32 conversion on Android only.
+            strings = '#include <codecvt>\n#include <locale>\n' + strings
+            for signature, result, method, invalid in (
+                ('std::wstring utf8_to_wide(const std::string &input)', 'std::wstring', 'from_bytes', 'L"<invalid UTF-8 string>"'),
+                ('std::string wide_to_utf8(const std::wstring &input)', 'std::string', 'to_bytes', '"<invalid wstring>"'),
+            ):
+                pattern = re.escape(signature) + r'\n\{\n(.*?)\n\}'
+                def convert_android(match):
+                    return (signature + '\n{\n#ifdef __ANDROID__\n'
+                            '\ttry {\n\t\tstd::wstring_convert<std::codecvt_utf8<wchar_t>> converter;\n'
+                            '\t\treturn converter.' + method + '(input);\n'
+                            '\t} catch (const std::range_error &) {\n\t\treturn ' + invalid + ';\n\t}\n'
+                            '#else\n' + match.group(1) + '\n#endif\n}')
+                strings, count = re.subn(pattern, convert_android, strings, count=1, flags=re.S)
+                if count != 1:
+                    raise SystemExit('Unsupported legacy UTF-8 conversion layout')
         legacy_strings.write_text(strings)
     if main_cpp.exists():
         main = main_cpp.read_text()

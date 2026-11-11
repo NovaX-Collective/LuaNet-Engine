@@ -93,7 +93,16 @@ def write_builtin_zip(version: str, archive: Path, destination: Path) -> None:
                 continue
             info = zipfile.ZipInfo(archive_name)
             info.external_attr = 0o644 << 16
-            zip_out.writestr(info, source.read())
+            data = source.read()
+            if version in ("5.0.1", "5.1.1") and archive_name == "builtin/common/misc_helpers.lua":
+                # LuaJIT does not guarantee pairs() order. Keep the upstream
+                # privilege serialization self-test valid deterministically.
+                old = b"\treturn table.concat(list, delim)\nend\n\nassert(core.string_to_privs"
+                new = b"\ttable.sort(list)\n\treturn table.concat(list, delim)\nend\n\nassert(core.string_to_privs"
+                if old not in data:
+                    raise RuntimeError(f"Unsupported {version} privilege serializer")
+                data = data.replace(old, new, 1)
+            zip_out.writestr(info, data)
             files += 1
 
     if files == 0:
