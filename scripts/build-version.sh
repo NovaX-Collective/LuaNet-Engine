@@ -86,12 +86,8 @@ BUILD="$SOURCE/.luanet-build"
 python3 "$ROOT/scripts/prepare-source.py" "$SOURCE" \
   --bridge "$ROOT/bridge/src/luanet_engine.cpp" --library "$LIBRARY"
 
-DEPS_URL="https://github.com/luanti-org/luanti_android_deps/releases/download/latest/deps-lite.zip"
-DEPS_SHA256="8d3a2d887a6b726fa260e623f1fabf7b2e94cf0c0ab952d998cfb69fbd635e1f"
-if [[ "$VERSION" == "5.18.0" ]]; then
-  DEPS_SHA256="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["androidDependencies518"]["sha256"])' "$ROOT/dependencies.json")"
-  DEPS_URL="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["androidDependencies518"]["archive"])' "$ROOT/dependencies.json")"
-fi
+DEPS_SHA256="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["androidDependencies"]["sha256"])' "$ROOT/dependencies.json")"
+DEPS_URL="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["androidDependencies"]["archive"])' "$ROOT/dependencies.json")"
 DEPS_ARCHIVE="$ROOT/.cache/deps-lite-$DEPS_SHA256.zip"
 DEPS="${ANDROID_DEPS_ROOT:-$ROOT/.cache/android-deps-$DEPS_SHA256}"
 if [[ ! -d "$DEPS/$ABI" ]]; then

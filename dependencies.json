@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "androidDependencies518": {
+  "androidDependencies": {
     "repository": "https://github.com/luanti-org/luanti_android_deps.git",
     "tag": "latest",
     "commit": "50689cf885e20fd89b08a4a8bd84030d8830a7c2",
@@ -9,7 +9,7 @@
     "sha256": "ceb652494184b75085b5fbf232bc59da347b1c4fea119f300e9f40a16b3aeed8",
     "size": 98102030
   },
-  "androidDependencies": {
+  "historicalAndroidDependencies": {
     "repository": "https://github.com/luanti-org/luanti_android_deps.git",
     "tag": "latest",
     "commit": "e7f6ee2446e1fc0024086a5368a0706f23b24399",
