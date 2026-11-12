@@ -3,6 +3,15 @@
   "androidDependencies": {
     "repository": "https://github.com/luanti-org/luanti_android_deps.git",
     "tag": "latest",
+    "commit": "50689cf885e20fd89b08a4a8bd84030d8830a7c2",
+    "assetId": 728933783,
+    "archive": "https://api.github.com/repos/luanti-org/luanti_android_deps/releases/assets/728933783",
+    "sha256": "ceb652494184b75085b5fbf232bc59da347b1c4fea119f300e9f40a16b3aeed8",
+    "size": 98102030
+  },
+  "historicalAndroidDependencies": {
+    "repository": "https://github.com/luanti-org/luanti_android_deps.git",
+    "tag": "latest",
     "commit": "e7f6ee2446e1fc0024086a5368a0706f23b24399",
     "archive": "https://github.com/luanti-org/luanti_android_deps/releases/download/latest/deps-lite.zip",
     "sha256": "8d3a2d887a6b726fa260e623f1fabf7b2e94cf0c0ab952d998cfb69fbd635e1f",

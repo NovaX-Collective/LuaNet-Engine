@@ -428,7 +428,10 @@ Java_net_novax_luanet_runtime_NativeEngineBridge_run(JNIEnv *env, jobject instan
 	std::vector<char *> arguments;
 	for (auto &value : values)
 		arguments.push_back(const_cast<char *>(value.c_str()));
-	const int result = main(static_cast<int>(arguments.size()), arguments.data());
+	// C and C++ require argv[argc] to be a null pointer. Older Luanti argument
+	// parsers read that sentinel and Android FORTIFY aborts when it is missing.
+	arguments.push_back(nullptr);
+	const int result = main(static_cast<int>(values.size()), arguments.data());
 
 	fflush(stdout);
 	fflush(stderr);

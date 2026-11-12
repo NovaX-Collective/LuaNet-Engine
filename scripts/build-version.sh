@@ -86,14 +86,14 @@ BUILD="$SOURCE/.luanet-build"
 python3 "$ROOT/scripts/prepare-source.py" "$SOURCE" \
   --bridge "$ROOT/bridge/src/luanet_engine.cpp" --library "$LIBRARY"
 
-DEPS_URL="https://github.com/luanti-org/luanti_android_deps/releases/download/latest/deps-lite.zip"
-DEPS_SHA256="8d3a2d887a6b726fa260e623f1fabf7b2e94cf0c0ab952d998cfb69fbd635e1f"
+DEPS_SHA256="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["androidDependencies"]["sha256"])' "$ROOT/dependencies.json")"
+DEPS_URL="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["androidDependencies"]["archive"])' "$ROOT/dependencies.json")"
 DEPS_ARCHIVE="$ROOT/.cache/deps-lite-$DEPS_SHA256.zip"
 DEPS="${ANDROID_DEPS_ROOT:-$ROOT/.cache/android-deps-$DEPS_SHA256}"
 if [[ ! -d "$DEPS/$ABI" ]]; then
   mkdir -p "$DEPS"
   if [[ ! -f "$DEPS_ARCHIVE" ]]; then
-    curl --fail --location --retry 3 "$DEPS_URL" --output "$DEPS_ARCHIVE.tmp"
+    curl --fail --location --retry 3 -H 'Accept: application/octet-stream' "$DEPS_URL" --output "$DEPS_ARCHIVE.tmp"
     mv "$DEPS_ARCHIVE.tmp" "$DEPS_ARCHIVE"
   fi
   echo "$DEPS_SHA256  $DEPS_ARCHIVE" | sha256sum --check --status || {
@@ -172,6 +172,10 @@ declare -a CMAKE_ARGS=(
   -DSQLITE3_LIBRARY="$SQLITE_DIR/libsqlite3.a"
   -DSQLite3_INCLUDE_DIR="$SQLITE_DIR/include"
   -DSQLite3_LIBRARY="$SQLITE_DIR/libsqlite3.a"
+  -DLUA_INCLUDE_DIR="$ABI_DEPS/LuaJIT/include"
+  -DLUA_LIBRARY="$ABI_DEPS/LuaJIT/libluajit.a"
+  -DENABLE_LUAJIT=ON
+  -DREQUIRE_LUAJIT=ON
   -DBUILD_CLIENT=OFF
   -DBUILD_SERVER=ON
   -DBUILD_UNITTESTS=OFF

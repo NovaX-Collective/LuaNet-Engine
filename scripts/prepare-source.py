@@ -66,7 +66,44 @@ def main() -> None:
     )
     cmake.write_text(text.replace(marker, injection + marker, 1))
 
+    helpers = args.source / "builtin" / "common" / "misc_helpers.lua"
+    if helpers.exists():
+        lua = helpers.read_text()
+        old = '\treturn table.concat(list, delim)\nend\n\nassert(core.string_to_privs'
+        if old in lua:
+            helpers.write_text(lua.replace(old, '\ttable.sort(list)\n' + old, 1))
+
     main_cpp = args.source / "src" / "main.cpp"
+    legacy_strings = args.source / "src" / "util" / "string.cpp"
+    if legacy_strings.exists():
+        strings = legacy_strings.read_text()
+        # Pre-API-21 wchar shims override Bionic symbols and crash modern
+        # libc++ initialization (mbtowc(nullptr, nullptr, 0)).
+        for marker in ("const wchar_t* wide_chars", "std::string wide_to_narrow"):
+            strings = strings.replace(
+                "#ifdef __ANDROID__\n\n" + marker,
+                "#if defined(__ANDROID__) && __ANDROID_API__ < 21\n\n" + marker,
+                1,
+            )
+        if "size_t inbuf_size = input.length() + 1;" in strings:
+            # Old iconv wrappers fail with current Android's conversion backend.
+            # Use locale-independent UTF-8/UTF-32 conversion on Android only.
+            strings = '#include <codecvt>\n#include <locale>\n' + strings
+            for signature, result, method, invalid in (
+                ('std::wstring utf8_to_wide(const std::string &input)', 'std::wstring', 'from_bytes', 'L"<invalid UTF-8 string>"'),
+                ('std::string wide_to_utf8(const std::wstring &input)', 'std::string', 'to_bytes', '"<invalid wstring>"'),
+            ):
+                pattern = re.escape(signature) + r'\n\{\n(.*?)\n\}'
+                def convert_android(match):
+                    return (signature + '\n{\n#ifdef __ANDROID__\n'
+                            '\ttry {\n\t\tstd::wstring_convert<std::codecvt_utf8<wchar_t>> converter;\n'
+                            '\t\treturn converter.' + method + '(input);\n'
+                            '\t} catch (const std::range_error &) {\n\t\treturn ' + invalid + ';\n\t}\n'
+                            '#else\n' + match.group(1) + '\n#endif\n}')
+                strings, count = re.subn(pattern, convert_android, strings, count=1, flags=re.S)
+                if count != 1:
+                    raise SystemExit('Unsupported legacy UTF-8 conversion layout')
+        legacy_strings.write_text(strings)
     if main_cpp.exists():
         main = main_cpp.read_text()
         if "luanet_set_admin_chat_interface" not in main:
@@ -135,8 +172,28 @@ def main() -> None:
             "\t\t\tluanet_clear_admin_chat_interface(&luanet_iface);\n\n"
             "\t\t} catch (const ModError &e) {"
         )
+        socket_no_curses_server = no_curses_server.replace(
+            "\t\t\t\tbind_addr, true);", "\t\t\t\t\tUDPSocket::Create(bind_addr), true);"
+        )
         if no_curses_server in main:
             main = main.replace(no_curses_server, luanet_server, 1)
+        elif no_curses_server.replace("volatile auto &kill", "bool &kill") in main:
+            main = main.replace(
+                no_curses_server.replace("volatile auto &kill", "bool &kill"),
+                luanet_server.replace("volatile auto &kill", "bool &kill"),
+                1,
+            )
+        elif socket_no_curses_server in main:
+            # Luanti 5.18 transfers an already-created UDP socket to Server.
+            # Patch the no-curses path: Android never runs the terminal UI.
+            main = main.replace(
+                socket_no_curses_server,
+                luanet_server.replace("bind_addr, true, &luanet_iface);",
+                                      "UDPSocket::Create(bind_addr), true, &luanet_iface);"),
+                1,
+            )
+        elif "UDPSocket::Create(bind_addr)" in main:
+            raise SystemExit("Unsupported Luanti UDP socket server loop layout")
         elif legacy_no_curses_server in main:
             main = main.replace(legacy_no_curses_server, legacy_luanet_server, 1)
         else:
@@ -171,8 +228,7 @@ def main() -> None:
                 1,
             )
         if "luanet_set_admin_chat_interface(&luanet_iface" not in main:
-            if "luanet_set_admin_chat_interface(&iface" not in main:
-                raise SystemExit("Unsupported Luanti dedicated server loop layout")
+            raise SystemExit("Unsupported Luanti headless dedicated server loop layout")
         main_cpp.write_text(main)
 
     if android_header.exists():
@@ -229,7 +285,7 @@ struct hash<::v3s16> {
 	{
 		return static_cast<size_t>(value.X) ^
 				(static_cast<size_t>(value.Y) << 16) ^
-				(static_cast<size_t>(value.Z) << 32);
+				(static_cast<size_t>(value.Z) << (sizeof(size_t) > 4 ? 32 : 1));
 	}
 };
 }
@@ -257,7 +313,7 @@ struct hash<::v3s16> {
             "return std::hash<v3s16>()(p.first) ^ p.second;",
             "return static_cast<size_t>(p.first.X) ^\n"
             "\t\t\t\t\t(static_cast<size_t>(p.first.Y) << 16) ^\n"
-            "\t\t\t\t\t(static_cast<size_t>(p.first.Z) << 32) ^\n"
+            "\t\t\t\t\t(static_cast<size_t>(p.first.Z) << (sizeof(size_t) > 4 ? 32 : 1)) ^\n"
             "\t\t\t\t\tstatic_cast<size_t>(p.second);",
         )
         server_header.write_text(server)

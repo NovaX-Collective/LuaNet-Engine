@@ -11,6 +11,7 @@ This script downloads official Luanti source archives and writes compact
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import tarfile
 import tempfile
@@ -37,6 +38,7 @@ VERSIONS = [
     "5.15.2",
     "5.16.1",
     "5.17.0",
+    "5.18.0",
 ]
 
 SOURCE_URLS = [
@@ -91,7 +93,16 @@ def write_builtin_zip(version: str, archive: Path, destination: Path) -> None:
                 continue
             info = zipfile.ZipInfo(archive_name)
             info.external_attr = 0o644 << 16
-            zip_out.writestr(info, source.read())
+            data = source.read()
+            if version in ("5.0.1", "5.1.1") and archive_name == "builtin/common/misc_helpers.lua":
+                # LuaJIT does not guarantee pairs() order. Keep the upstream
+                # privilege serialization self-test valid deterministically.
+                old = b"\treturn table.concat(list, delim)\nend\n\nassert(core.string_to_privs"
+                new = b"\ttable.sort(list)\n\treturn table.concat(list, delim)\nend\n\nassert(core.string_to_privs"
+                if old not in data:
+                    raise RuntimeError(f"Unsupported {version} privilege serializer")
+                data = data.replace(old, new, 1)
+            zip_out.writestr(info, data)
             files += 1
 
     if files == 0:
@@ -100,12 +111,17 @@ def write_builtin_zip(version: str, archive: Path, destination: Path) -> None:
 
 
 def main() -> None:
-    root = repo_root()
-    legacy_output_root = root / "android/engine_legacy/src/main/assets/engine-runtime"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", action="append", choices=VERSIONS,
+                        help="Bundle only these versions (repeatable). Defaults to the full catalog.")
+    parser.add_argument("--output-root", type=Path,
+                        default=repo_root() / "android/engine_legacy/src/main/assets/engine-runtime")
+    args = parser.parse_args()
+    legacy_output_root = args.output_root
     legacy_output_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="luanet-runtime-source-") as temporary:
         cache_dir = Path(temporary)
-        for version in VERSIONS:
+        for version in args.version or VERSIONS:
             archive = download(version, cache_dir)
             write_builtin_zip(version, archive, legacy_output_root / version / "builtin.zip")
 
